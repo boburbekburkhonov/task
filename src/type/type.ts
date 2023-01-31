@@ -1,10 +1,10 @@
 namespace Express {
 	export interface Request {
     filtered: {
-			firstName?: string;
-			lastName?: string;
-			password?: string;
-		};
-		userId: string;
-	}
+      firstName: string;
+      lastName: string;
+      password: string;
+    };
+    userId: string;
+  }
 }

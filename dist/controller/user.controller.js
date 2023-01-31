@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const ormconfig_1 = __importDefault(require("../config/ormconfig"));
 const user_entity_1 = require("../entities/user.entity");
 const errorHandler_1 = require("../error/errorHandler");
+const bcrypt_1 = require("../utils/bcrypt");
 const jwt_1 = require("../utils/jwt");
 class UserController {
     async GET(req, res, next) {
@@ -28,9 +29,9 @@ class UserController {
             .find()
             .catch((err) => next(new errorHandler_1.ErrorHandler(err.message, 500)));
         const foundUser = allUsers?.find((e) => e.first_name.toLowerCase() == name.toLowerCase() &&
-            e.password == password);
+            (0, bcrypt_1.comparePassword)(password, e.password));
         if (!foundUser) {
-            return next(new errorHandler_1.ErrorHandler("Siz registratsita qilmagansiz", 400));
+            return next(new errorHandler_1.ErrorHandler("Siz registratsiya qilmagansiz, yoki ma'lumotingizni o'zgartirgansiz", 400));
         }
         res.json({
             message: "Successfully",
@@ -40,21 +41,26 @@ class UserController {
     }
     async POST_SIGN(req, res, next) {
         const { firstName, lastName, password } = req.filtered;
+        const passwordHash = (0, bcrypt_1.encodePassword)(password);
         const allUsers = await ormconfig_1.default
             .getRepository(user_entity_1.Users)
             .find()
             .catch((err) => next(new errorHandler_1.ErrorHandler(err.message, 500)));
         const foundUser = allUsers?.find((e) => e.first_name.toLowerCase() == firstName?.toLowerCase() &&
             e.last_name.toLowerCase() == lastName?.toLowerCase() &&
-            e.password == password);
+            (0, bcrypt_1.comparePassword)(password, e.password));
         if (foundUser) {
-            return next(new errorHandler_1.ErrorHandler("Siz ro'yxatdan o'tkansiz", 400));
+            return next(new errorHandler_1.ErrorHandler("Siz ro'yxatdan o'tgansiz", 400));
         }
         const { raw: [row], } = await ormconfig_1.default
             .createQueryBuilder()
             .insert()
             .into(user_entity_1.Users)
-            .values({ first_name: firstName, last_name: lastName, password })
+            .values({
+            first_name: firstName,
+            last_name: lastName,
+            password: passwordHash,
+        })
             .execute();
         if (row) {
             res.status(201).json({
@@ -67,6 +73,10 @@ class UserController {
     async PUT(req, res, next) {
         const { userId } = req;
         const { firstName, lastName, password } = req.body;
+        let hashPassword;
+        if (password) {
+            hashPassword = (0, bcrypt_1.encodePassword)(password);
+        }
         const foundUser = await ormconfig_1.default
             .getRepository(user_entity_1.Users)
             .findOneBy({
@@ -80,7 +90,7 @@ class UserController {
             .set({
             first_name: firstName || foundUser?.first_name,
             last_name: lastName || foundUser?.last_name,
-            password: password || foundUser?.password,
+            password: hashPassword || foundUser?.password,
         })
             .where("id = :id", { id: userId })
             .execute();

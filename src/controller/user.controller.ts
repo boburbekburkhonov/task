@@ -1,7 +1,8 @@
 import { NextFunction, Request, Response } from "express";
-import dataSource from '../config/ormconfig'
+import dataSource from "../config/ormconfig";
 import { Users } from "../entities/user.entity";
 import { ErrorHandler } from "../error/errorHandler";
+import { comparePassword, encodePassword } from "../utils/bcrypt";
 import { sign } from "../utils/jwt";
 
 class UserController {
@@ -40,11 +41,16 @@ class UserController {
     const foundUser: any = allUsers?.find(
       (e: { first_name: string; password: any }) =>
         e.first_name.toLowerCase() == name.toLowerCase() &&
-        e.password == password
+        comparePassword(password, e.password)
     );
 
     if (!foundUser) {
-      return next(new ErrorHandler("Siz registratsita qilmagansiz", 400));
+      return next(
+        new ErrorHandler(
+          "Siz registratsiya qilmagansiz, yoki ma'lumotingizni o'zgartirgansiz",
+          400
+        )
+      );
     }
 
     res.json({
@@ -60,6 +66,7 @@ class UserController {
     next: NextFunction
   ): Promise<void> {
     const { firstName, lastName, password } = req.filtered;
+    const passwordHash = encodePassword(password);
 
     const allUsers: any = await dataSource
       .getRepository(Users)
@@ -70,11 +77,11 @@ class UserController {
       (e: { first_name: string; last_name: string; password: string }) =>
         e.first_name.toLowerCase() == firstName?.toLowerCase() &&
         e.last_name.toLowerCase() == lastName?.toLowerCase() &&
-        e.password == password
+        comparePassword(password, e.password)
     );
 
     if (foundUser) {
-      return next(new ErrorHandler("Siz ro'yxatdan o'tkansiz", 400));
+      return next(new ErrorHandler("Siz ro'yxatdan o'tgansiz", 400));
     }
 
     const {
@@ -83,7 +90,11 @@ class UserController {
       .createQueryBuilder()
       .insert()
       .into(Users)
-      .values({ first_name: firstName, last_name: lastName, password })
+      .values({
+        first_name: firstName,
+        last_name: lastName,
+        password: passwordHash,
+      })
       .execute();
 
     if (row) {
@@ -102,6 +113,13 @@ class UserController {
   ): Promise<void> {
     const { userId } = req;
     const { firstName, lastName, password } = req.body;
+
+    let hashPassword: any;
+
+    if (password) {
+      hashPassword = encodePassword(password);
+    }
+
     const foundUser: any = await dataSource
       .getRepository(Users)
       .findOneBy({
@@ -116,7 +134,7 @@ class UserController {
       .set({
         first_name: firstName || foundUser?.first_name,
         last_name: lastName || foundUser?.last_name,
-        password: password || foundUser?.password,
+        password: hashPassword || foundUser?.password,
       })
       .where("id = :id", { id: userId })
       .execute();
@@ -130,4 +148,4 @@ class UserController {
   }
 }
 
-export default new UserController()
+export default new UserController();
