@@ -7,13 +7,13 @@ exports.verifyToken = void 0;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const errorHandler_1 = require("../error/errorHandler");
 const verifyToken = (req, res, next) => {
-    const { token } = req.cookies;
-    if (!token) {
-        return next(new errorHandler_1.ErrorHandler('Provide access token', 401));
+    const { access_token } = req.headers;
+    if (!access_token) {
+        return next(new errorHandler_1.ErrorHandler("Provide access token", 401));
     }
-    jsonwebtoken_1.default.verify(token, 'qwert12345', (err, decode) => {
+    jsonwebtoken_1.default.verify(String(access_token), "qwert12345", (err, decode) => {
         if (err instanceof jsonwebtoken_1.default.JsonWebTokenError) {
-            return next(new errorHandler_1.ErrorHandler('Invalid token', 401));
+            return next(new errorHandler_1.ErrorHandler("Invalid token", 401));
         }
         req.userId = decode.id;
         next();

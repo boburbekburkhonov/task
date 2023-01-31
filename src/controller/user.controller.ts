@@ -5,49 +5,129 @@ import { ErrorHandler } from "../error/errorHandler";
 import { sign } from "../utils/jwt";
 
 class UserController {
-  public async POST_LOGIN(req: Request, res: Response, next: NextFunction): Promise<void>  {
+  public async GET(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    const { userId } = req;
+
+    const foundUser: any = await dataSource
+      .getRepository(Users)
+      .findOneBy({
+        id: userId,
+      })
+      .catch((err: ErrorHandler) => next(new ErrorHandler(err.message, 500)));
+
+    res.status(200).json({
+      data: foundUser,
+      status: 200,
+    });
+  }
+
+  public async POST_LOGIN(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     const { name, password } = req.body;
 
-    const allUsers = await dataSource.getRepository(Users).find()
-    .catch((err: ErrorHandler) => console.log(err.message, 500))
+    const allUsers: any = await dataSource
+      .getRepository(Users)
+      .find()
+      .catch((err: ErrorHandler) => next(new ErrorHandler(err.message, 500)));
 
-    if(!allUsers){
-      return next(new ErrorHandler('Users not found', 404))
-    }
+    const foundUser: any = allUsers?.find(
+      (e: { first_name: string; password: any }) =>
+        e.first_name.toLowerCase() == name.toLowerCase() &&
+        e.password == password
+    );
 
-    const foundUser = allUsers.find(e => e.first_name.toLowerCase() == name.toLowerCase() && e.password == password);
-
-    if(!foundUser){
-      return next(new ErrorHandler('User not found', 404))
+    if (!foundUser) {
+      return next(new ErrorHandler("Siz registratsita qilmagansiz", 400));
     }
 
     res.json({
-      message: 'Successfully',
+      message: "Successfully",
       status: 200,
-      access_token: sign({ id: foundUser.id })
-    })
+      access_token: sign({ id: foundUser.id }),
+    });
   }
 
-  public async POST_SIGN(req: Request, res: Response, next: NextFunction): Promise<void>  {
-    const { first_name, last_name, password } = req.filtered
+  public async POST_SIGN(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    const { firstName, lastName, password } = req.filtered;
 
-    const { raw: [row] }: any = await dataSource
+    const allUsers: any = await dataSource
+      .getRepository(Users)
+      .find()
+      .catch((err: ErrorHandler) => next(new ErrorHandler(err.message, 500)));
+
+    const foundUser: any = allUsers?.find(
+      (e: { first_name: string; last_name: string; password: string }) =>
+        e.first_name.toLowerCase() == firstName?.toLowerCase() &&
+        e.last_name.toLowerCase() == lastName?.toLowerCase() &&
+        e.password == password
+    );
+
+    if (foundUser) {
+      return next(new ErrorHandler("Siz ro'yxatdan o'tkansiz", 400));
+    }
+
+    const {
+      raw: [row],
+    }: any = await dataSource
       .createQueryBuilder()
       .insert()
       .into(Users)
-      .values({ first_name, last_name, password })
-      .execute()
+      .values({ first_name: firstName, last_name: lastName, password })
+      .execute();
 
-
-    if(row){
+    if (row) {
       res.status(201).json({
-        message: 'User created successfully',
+        message: "User created successfully",
         status: 201,
-        access_token: sign({ id: row.user_id })
-      })
+        access_token: sign({ id: row.user_id }),
+      });
     }
   }
 
+  public async PUT(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    const { userId } = req;
+    const { firstName, lastName, password } = req.body;
+    const foundUser: any = await dataSource
+      .getRepository(Users)
+      .findOneBy({
+        id: userId,
+      })
+      .catch((err: ErrorHandler) => next(new ErrorHandler(err.message, 500)));
+
+    const updateUser: any = await dataSource
+      .getRepository(Users)
+      .createQueryBuilder()
+      .update(Users)
+      .set({
+        first_name: firstName || foundUser?.first_name,
+        last_name: lastName || foundUser?.last_name,
+        password: password || foundUser?.password,
+      })
+      .where("id = :id", { id: userId })
+      .execute();
+
+    if (updateUser) {
+      res.status(200).json({
+        message: "Updated successfully",
+        status: 200,
+      });
+    }
+  }
 }
 
 export default new UserController()
